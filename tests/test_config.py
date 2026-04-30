@@ -3,8 +3,27 @@ import pytest
 from ai_news.config import AppConfig, ConfigError, load_config
 
 
+PROJECT_ENV_KEYS = [
+    "AI_API_KEY",
+    "AI_BASE_URL",
+    "AI_MODEL",
+    "AI_API_STYLE",
+    "MAIL_HOST",
+    "MAIL_PORT",
+    "MAIL_USERNAME",
+    "MAIL_PASSWORD",
+    "MAIL_FROM",
+    "MAIL_TO",
+    "NEWS_API_PROVIDER",
+    "NEWS_API_KEY",
+    "DRY_RUN",
+]
+
+
 @pytest.fixture(autouse=True)
-def disable_dotenv(monkeypatch):
+def isolate_config_environment(monkeypatch):
+    for key in PROJECT_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
     monkeypatch.setattr("ai_news.config.load_dotenv", lambda: None)
 
 
