@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import calendar
 import re
 from datetime import datetime, timedelta, timezone
-from time import mktime
-from typing import Iterable
+from typing import Any, Iterable, Mapping
 
 import feedparser
 import requests
@@ -47,14 +47,18 @@ TRAINER_KEYWORDS = {
 _WORD_PATTERN = re.compile(r"[a-z0-9]+")
 
 
-def _entry_datetime(entry: dict) -> datetime:
+class NewsSourceError(RuntimeError):
+    """Raised when a configured external news source fails."""
+
+
+def _entry_datetime(entry: Mapping[str, Any]) -> datetime:
     parsed = entry.get("published_parsed") or entry.get("updated_parsed")
     if parsed:
-        return datetime.fromtimestamp(mktime(parsed), tz=timezone.utc)
+        return datetime.fromtimestamp(calendar.timegm(parsed), tz=timezone.utc)
     return datetime.now(timezone.utc)
 
 
-def parse_feed_entries(source_name: str, entries: Iterable[dict]) -> list[NewsItem]:
+def parse_feed_entries(source_name: str, entries: Iterable[Mapping[str, Any]]) -> list[NewsItem]:
     items: list[NewsItem] = []
     for entry in entries:
         title = str(entry.get("title", "")).strip()
@@ -83,19 +87,24 @@ def fetch_news_api_items(config: AppConfig) -> list[NewsItem]:
         return []
 
     query = '(AI OR "artificial intelligence" OR LLM OR "prompt engineering" OR "model evaluation")'
-    response = requests.get(
-        "https://newsapi.org/v2/everything",
-        params={
-            "q": query,
-            "language": "en",
-            "sortBy": "publishedAt",
-            "pageSize": 20,
-            "apiKey": config.news_api_key,
-        },
-        timeout=20,
-    )
-    response.raise_for_status()
-    data = response.json()
+    try:
+        response = requests.get(
+            "https://newsapi.org/v2/everything",
+            params={
+                "q": query,
+                "language": "en",
+                "sortBy": "publishedAt",
+                "pageSize": 20,
+                "apiKey": config.news_api_key,
+            },
+            timeout=20,
+        )
+        response.raise_for_status()
+        data = response.json()
+    except NewsSourceError:
+        raise
+    except Exception as exc:
+        raise NewsSourceError("Configured NewsAPI source failed.") from exc
 
     items: list[NewsItem] = []
     for article in data.get("articles", []):
@@ -136,11 +145,7 @@ def fetch_all_news(
         except Exception as exc:
             print(f"RSS source failed: {source_name} ({url}) - {exc}")
 
-    api_items: list[NewsItem] = []
-    try:
-        api_items = fetch_news_api_items(config)
-    except Exception as exc:
-        print(f"News API fetch failed; continuing with RSS only - {exc}")
+    api_items = fetch_news_api_items(config)
 
     all_items = dedupe_items([*items, *api_items])
     return all_items, {"news_api_used": bool(api_items)}
