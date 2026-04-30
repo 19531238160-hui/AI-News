@@ -11,7 +11,7 @@ import markdown
 
 from .config import AppConfig
 
-_ALLOWED_LINK_SCHEMES = {"", "http", "https", "mailto"}
+_ALLOWED_LINK_SCHEMES = {"http", "https", "mailto"}
 _ALLOWED_HTML_TAGS = {
     "a",
     "blockquote",
@@ -43,13 +43,7 @@ class _LinkSanitizer(HTMLParser):
         if tag not in _ALLOWED_HTML_TAGS:
             self.parts.append(escape(self.get_starttag_text() or f"<{tag}>"))
             return
-        safe_attrs = []
-        for name, value in attrs:
-            if tag == "a" and name.lower() == "href" and value is not None:
-                if urlsplit(value).scheme.lower() not in _ALLOWED_LINK_SCHEMES:
-                    continue
-            safe_attrs.append((name, value))
-        self.parts.append(self.get_starttag_text_from(tag, safe_attrs))
+        self.parts.append(self.get_starttag_text_from(tag, self.sanitize_attrs(tag, attrs)))
 
     def handle_endtag(self, tag: str) -> None:
         if tag not in _ALLOWED_HTML_TAGS:
@@ -82,6 +76,20 @@ class _LinkSanitizer(HTMLParser):
             else:
                 rendered_attrs.append(f'{name}="{escape(value, quote=True)}"')
         return f"<{tag} {' '.join(rendered_attrs)}>"
+
+    def sanitize_attrs(self, tag: str, attrs: list[tuple[str, str | None]]) -> list[tuple[str, str | None]]:
+        if tag != "a":
+            return []
+
+        safe_attrs = []
+        for name, value in attrs:
+            attr_name = name.lower()
+            if attr_name == "href" and value is not None:
+                if urlsplit(value).scheme.lower() in _ALLOWED_LINK_SCHEMES:
+                    safe_attrs.append(("href", value))
+            elif attr_name == "title" and value is not None:
+                safe_attrs.append(("title", value))
+        return safe_attrs
 
 
 def _sanitize_markdown_links(html_text: str) -> str:

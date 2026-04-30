@@ -50,6 +50,27 @@ def test_markdown_to_html_removes_dangerous_link_protocols():
     assert "javascript:" not in html
 
 
+def test_markdown_to_html_removes_dangerous_attributes_from_allowed_tags():
+    html = markdown_to_html('<h1 style="color:red">Title</h1>')
+
+    assert "<h1>Title</h1>" in html
+    assert "style=" not in html
+
+
+def test_markdown_to_html_keeps_safe_anchor_href_and_removes_dangerous_attributes():
+    html = markdown_to_html('<a href="https://example.com" onclick="alert(1)" style="color:red">safe</a>')
+
+    assert '<a href="https://example.com">safe</a>' in html
+    assert "onclick=" not in html
+    assert "style=" not in html
+
+
+def test_markdown_to_html_renders_markdown_links_with_safe_href():
+    html = markdown_to_html("[safe](https://example.com)")
+
+    assert '<a href="https://example.com">safe</a>' in html
+
+
 def test_build_email_message_contains_plain_and_html_parts():
     message = build_email_message(config(), "# 标题", "2026-04-30")
 
