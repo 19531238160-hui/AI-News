@@ -35,6 +35,14 @@ def _get(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip()
 
 
+def _get_mail_port() -> int:
+    value = _get("MAIL_PORT", "465")
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ConfigError("MAIL_PORT must be a number, for example 465.") from exc
+
+
 def load_config(dry_run_override: bool | None = None) -> AppConfig:
     load_dotenv()
 
@@ -45,7 +53,7 @@ def load_config(dry_run_override: bool | None = None) -> AppConfig:
         ai_model=_get("AI_MODEL"),
         ai_api_style=_get("AI_API_STYLE", "responses"),
         mail_host=_get("MAIL_HOST", "smtp.163.com"),
-        mail_port=int(_get("MAIL_PORT", "465")),
+        mail_port=_get_mail_port(),
         mail_username=_get("MAIL_USERNAME"),
         mail_password=_get("MAIL_PASSWORD"),
         mail_from=_get("MAIL_FROM"),

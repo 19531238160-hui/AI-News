@@ -3,6 +3,11 @@ import pytest
 from ai_news.config import AppConfig, ConfigError, load_config
 
 
+@pytest.fixture(autouse=True)
+def disable_dotenv(monkeypatch):
+    monkeypatch.setattr("ai_news.config.load_dotenv", lambda: None)
+
+
 def test_load_config_requires_ai_values(monkeypatch):
     for key in [
         "AI_API_KEY",
@@ -75,3 +80,22 @@ def test_dry_run_override_allows_missing_mail_values(monkeypatch):
 
     assert config.dry_run is True
     assert config.mail_to == ""
+
+
+def test_load_config_rejects_non_numeric_mail_port(monkeypatch):
+    monkeypatch.setenv("AI_API_KEY", "ai-key")
+    monkeypatch.setenv("AI_BASE_URL", "https://api.example.com")
+    monkeypatch.setenv("AI_MODEL", "example-model")
+    monkeypatch.setenv("MAIL_USERNAME", "sender@163.com")
+    monkeypatch.setenv("MAIL_PASSWORD", "smtp-auth-code")
+    monkeypatch.setenv("MAIL_FROM", "sender@163.com")
+    monkeypatch.setenv("MAIL_TO", "reader@example.com")
+    monkeypatch.setenv("MAIL_PORT", "not-a-number")
+
+    with pytest.raises(ConfigError) as exc_info:
+        load_config()
+
+    message = str(exc_info.value)
+    assert "MAIL_PORT" in message
+    assert "must be a number" in message
+    assert "465" in message
