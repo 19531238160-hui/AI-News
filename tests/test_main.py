@@ -1,3 +1,6 @@
+import os
+import subprocess
+import sys
 from dataclasses import replace
 from datetime import date, datetime, timezone
 
@@ -194,3 +197,36 @@ def test_main_redacts_configured_secrets_from_errors(monkeypatch, capsys):
     assert "ai-key" not in captured.err
     assert "news-secret" not in captured.err
     assert "[redacted]" in captured.err
+
+
+def test_module_execution_runs_cli_and_reports_missing_config():
+    env = os.environ.copy()
+    for key in [
+        "AI_API_KEY",
+        "AI_BASE_URL",
+        "AI_MODEL",
+        "AI_API_STYLE",
+        "MAIL_HOST",
+        "MAIL_PORT",
+        "MAIL_USERNAME",
+        "MAIL_PASSWORD",
+        "MAIL_FROM",
+        "MAIL_TO",
+        "NEWS_API_PROVIDER",
+        "NEWS_API_KEY",
+        "DRY_RUN",
+    ]:
+        env.pop(key, None)
+
+    result = subprocess.run(
+        [sys.executable, "-m", "ai_news.main", "--dry-run"],
+        cwd=".",
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "Error:" in result.stderr
+    assert "AI_API_KEY" in result.stderr
