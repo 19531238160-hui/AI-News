@@ -1,16 +1,99 @@
 from __future__ import annotations
 
+from html import escape
+from html.parser import HTMLParser
 import smtplib
 from email.message import EmailMessage
 from typing import Callable
+from urllib.parse import urlsplit
 
 import markdown
 
 from .config import AppConfig
 
+_ALLOWED_LINK_SCHEMES = {"", "http", "https", "mailto"}
+_ALLOWED_HTML_TAGS = {
+    "a",
+    "blockquote",
+    "br",
+    "code",
+    "em",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "hr",
+    "li",
+    "ol",
+    "p",
+    "pre",
+    "strong",
+    "ul",
+}
+
+
+class _LinkSanitizer(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self.parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag not in _ALLOWED_HTML_TAGS:
+            self.parts.append(escape(self.get_starttag_text() or f"<{tag}>"))
+            return
+        safe_attrs = []
+        for name, value in attrs:
+            if tag == "a" and name.lower() == "href" and value is not None:
+                if urlsplit(value).scheme.lower() not in _ALLOWED_LINK_SCHEMES:
+                    continue
+            safe_attrs.append((name, value))
+        self.parts.append(self.get_starttag_text_from(tag, safe_attrs))
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag not in _ALLOWED_HTML_TAGS:
+            self.parts.append(escape(f"</{tag}>"))
+            return
+        self.parts.append(f"</{tag}>")
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag not in _ALLOWED_HTML_TAGS:
+            self.parts.append(escape(self.get_starttag_text() or f"<{tag}>"))
+            return
+        self.handle_starttag(tag, attrs)
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(escape(data, quote=False))
+
+    def handle_entityref(self, name: str) -> None:
+        self.parts.append(f"&{name};")
+
+    def handle_charref(self, name: str) -> None:
+        self.parts.append(f"&#{name};")
+
+    def get_starttag_text_from(self, tag: str, attrs: list[tuple[str, str | None]]) -> str:
+        if not attrs:
+            return f"<{tag}>"
+        rendered_attrs = []
+        for name, value in attrs:
+            if value is None:
+                rendered_attrs.append(name)
+            else:
+                rendered_attrs.append(f'{name}="{escape(value, quote=True)}"')
+        return f"<{tag} {' '.join(rendered_attrs)}>"
+
+
+def _sanitize_markdown_links(html_text: str) -> str:
+    sanitizer = _LinkSanitizer()
+    sanitizer.feed(html_text)
+    sanitizer.close()
+    return "".join(sanitizer.parts)
+
 
 def markdown_to_html(markdown_text: str) -> str:
     body = markdown.markdown(markdown_text, extensions=["extra", "sane_lists"])
+    body = _sanitize_markdown_links(body)
     return f"""<!doctype html>
 <html>
 <head>
@@ -54,4 +137,10 @@ def send_email(
         raise RuntimeError(
             "Email authentication failed. For NetEase email, MAIL_PASSWORD must be "
             "the SMTP authorization code, not your normal login password."
+        ) from exc
+    except (smtplib.SMTPException, OSError) as exc:
+        raise RuntimeError(
+            "Email delivery failed via "
+            f"{config.mail_host}:{config.mail_port} from {config.mail_from} to {config.mail_to}. "
+            "Check SMTP host, SMTP port, SMTP authorization code, and recipient."
         ) from exc
