@@ -101,6 +101,9 @@ def fetch_news_api_items(config: AppConfig) -> list[NewsItem]:
         )
         response.raise_for_status()
         data = response.json()
+        if data.get("status") == "error":
+            message = str(data.get("message") or "unknown error")
+            raise NewsSourceError(f"NewsAPI returned an error: {message}")
     except NewsSourceError:
         raise
     except Exception as exc:

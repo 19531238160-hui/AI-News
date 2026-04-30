@@ -151,6 +151,23 @@ def test_fetch_news_api_items_requests_newsapi_and_parses_articles(monkeypatch):
     assert items[0].summary == "Benchmark details for AI trainers."
 
 
+def test_fetch_news_api_items_raises_newsapi_status_error(monkeypatch):
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"status": "error", "message": "API key disabled"}
+
+    def fake_get(*args, **kwargs):
+        return FakeResponse()
+
+    monkeypatch.setattr("ai_news.news_sources.requests.get", fake_get)
+
+    with pytest.raises(NewsSourceError, match="API key disabled"):
+        fetch_news_api_items(make_config("newsapi", "secret-key"))
+
+
 def test_fetch_all_news_raises_when_configured_news_api_fails(monkeypatch):
     def fake_parse(url):
         assert url
