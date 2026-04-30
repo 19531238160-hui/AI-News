@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
@@ -25,6 +26,8 @@ TRAINER_KEYWORDS = {
     "multimodal": 3,
     "agent": 3,
 }
+
+_WORD_PATTERN = re.compile(r"[a-z0-9]+")
 
 
 def dedupe_items(items: Iterable[NewsItem]) -> list[NewsItem]:
@@ -58,7 +61,7 @@ def filter_recent_items(
     recent = [
         news
         for news in sorted_items
-        if current - news.published_utc() <= timedelta(hours=48)
+        if timedelta(0) <= current - news.published_utc() <= timedelta(hours=48)
     ]
     if len(recent) >= min_items:
         return recent, False
@@ -66,16 +69,34 @@ def filter_recent_items(
     expanded = [
         news
         for news in sorted_items
-        if current - news.published_utc() <= timedelta(hours=72)
+        if timedelta(0) <= current - news.published_utc() <= timedelta(hours=72)
     ]
-    return expanded, len(expanded) > len(recent)
+    return expanded, True
+
+
+def _normalized_words(text: str) -> list[str]:
+    return _WORD_PATTERN.findall(text.lower())
+
+
+def _matches_keyword(keyword: str, words: list[str], normalized_text: str) -> bool:
+    keyword_words = _normalized_words(keyword)
+    if len(keyword_words) > 1:
+        return f" {' '.join(keyword_words)} " in normalized_text
+    if not keyword_words:
+        return False
+    keyword_word = keyword_words[0]
+    return any(
+        word == keyword_word and (index == 0 or words[index - 1] != "not")
+        for index, word in enumerate(words)
+    )
 
 
 def _score_item(item: NewsItem) -> int:
-    text = f"{item.title} {item.summary} {item.source}".lower()
+    words = _normalized_words(f"{item.title} {item.summary} {item.source}")
+    normalized_text = f" {' '.join(words)} "
     score = 0
     for keyword, weight in TRAINER_KEYWORDS.items():
-        if keyword in text:
+        if _matches_keyword(keyword, words, normalized_text):
             score += weight
     return score
 
