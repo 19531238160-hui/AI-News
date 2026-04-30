@@ -1,7 +1,11 @@
+from dataclasses import replace
 from datetime import date, datetime, timezone
 
+import pytest
+
 from ai_news.config import AppConfig
-from ai_news.main import run
+from ai_news import main as main_module
+from ai_news.main import report_context, run
 from ai_news.models import NewsItem
 
 
@@ -66,6 +70,7 @@ def test_run_saves_report_and_skips_email_in_dry_run(tmp_path):
 
 def test_run_sends_email_when_not_dry_run(tmp_path):
     calls = {"email": 0}
+    summarize_calls = {}
 
     def fake_fetch(_config):
         return (
@@ -82,7 +87,9 @@ def test_run_sends_email_when_not_dry_run(tmp_path):
             {"news_api_used": True},
         )
 
-    def fake_summarize(*args, **kwargs):
+    def fake_summarize(_config, items, report_date, expanded_window, news_api_used):
+        summarize_calls["expanded_window"] = expanded_window
+        summarize_calls["news_api_used"] = news_api_used
         return "# 简报\n"
 
     def fake_send(_config, markdown, report_date):
@@ -100,3 +107,90 @@ def test_run_sends_email_when_not_dry_run(tmp_path):
     )
 
     assert calls["email"] == 1
+    assert summarize_calls == {"expanded_window": False, "news_api_used": True}
+
+
+def test_report_context_uses_beijing_date_and_utc_filter_anchor():
+    report_day, report_date, report_end = report_context(
+        now=datetime(2026, 4, 29, 16, 30, tzinfo=timezone.utc)
+    )
+
+    assert report_day == date(2026, 4, 30)
+    assert report_date == "2026-04-30"
+    assert report_end == datetime(2026, 4, 30, 15, 59, 59, tzinfo=timezone.utc)
+
+
+def test_report_context_respects_explicit_today_for_beijing_anchor():
+    report_day, report_date, report_end = report_context(today=date(2026, 4, 30))
+
+    assert report_day == date(2026, 4, 30)
+    assert report_date == "2026-04-30"
+    assert report_end == datetime(2026, 4, 30, 15, 59, 59, tzinfo=timezone.utc)
+
+
+def test_run_no_news_error_includes_actionable_troubleshooting(tmp_path):
+    def fake_fetch(_config):
+        return ([], {"news_api_used": False})
+
+    with pytest.raises(RuntimeError) as exc_info:
+        run(
+            config(dry_run=True),
+            today=date(2026, 4, 30),
+            root=tmp_path,
+            fetch_news=fake_fetch,
+            summarize=lambda *args: "# unused\n",
+            send=lambda *args: None,
+        )
+
+    message = str(exc_info.value)
+    assert "RSS" in message
+    assert "NEWS_API_PROVIDER" in message
+    assert "NEWS_API_KEY" in message
+    assert "network" in message.lower()
+    assert "ai-key" not in message
+
+
+def test_main_prints_friendly_error_and_exits_nonzero(monkeypatch, capsys):
+    def fake_load_config(dry_run_override=None):
+        assert dry_run_override is None
+        return config(dry_run=False)
+
+    def fake_run(_config):
+        raise RuntimeError("No AI news items were found. Check RSS sources.")
+
+    monkeypatch.setattr(main_module, "load_config", fake_load_config)
+    monkeypatch.setattr(main_module, "run", fake_run)
+    monkeypatch.setattr(main_module.sys, "argv", ["ai-news"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        main_module.main()
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "Error: No AI news items were found." in captured.err
+    assert "Troubleshooting:" in captured.err
+    assert "NEWS_API_KEY" in captured.err
+    assert "ai-key" not in captured.err
+
+
+def test_main_redacts_configured_secrets_from_errors(monkeypatch, capsys):
+    app_config = replace(config(dry_run=False), news_api_key="news-secret")
+
+    def fake_load_config(dry_run_override=None):
+        return app_config
+
+    def fake_run(_config):
+        raise RuntimeError("failed with ai-key and news-secret")
+
+    monkeypatch.setattr(main_module, "load_config", fake_load_config)
+    monkeypatch.setattr(main_module, "run", fake_run)
+    monkeypatch.setattr(main_module.sys, "argv", ["ai-news"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        main_module.main()
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "ai-key" not in captured.err
+    assert "news-secret" not in captured.err
+    assert "[redacted]" in captured.err
