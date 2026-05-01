@@ -6,6 +6,7 @@ on:
     - cron: "47 11 * * *"
     - cron: "17 12 * * *"
     - cron: "45 12 * * *"
+    - cron: "15 13 * * *"
   workflow_dispatch:
 
 permissions:
@@ -38,22 +39,23 @@ jobs:
       - name: Run tests
         run: pytest -v
 
-      - name: Check today's report
-        id: report_date
+      - name: Check today's email marker
+        id: email_marker
         run: |
           report_date="$(TZ=Asia/Shanghai date +%F)"
-          report_path="reports/${report_date}.md"
+          marker_path="reports/.email-sent-${report_date}"
           echo "date=${report_date}" >> "$GITHUB_OUTPUT"
-          if [ -f "$report_path" ]; then
+          echo "path=${marker_path}" >> "$GITHUB_OUTPUT"
+          if [ -f "$marker_path" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Report already exists: $report_path"
+            echo "Email marker already exists: $marker_path"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Report not found: $report_path"
+            echo "Email marker not found: $marker_path"
           fi
 
       - name: Generate and email daily report
-        if: github.event_name != 'schedule' || steps.report_date.outputs.exists != 'true'
+        if: github.event_name != 'schedule' || steps.email_marker.outputs.exists != 'true'
         env:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
@@ -69,14 +71,19 @@ jobs:
           NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
         run: python -m ai_news.main
 
+      - name: Mark email sent
+        if: github.event_name != 'schedule' || steps.email_marker.outputs.exists != 'true'
+        run: |
+          touch "${{ steps.email_marker.outputs.path }}"
+
       - name: Commit report
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if compgen -G "reports/*.md" > /dev/null; then
-            git add reports/*.md
+          if compgen -G "reports/*.md" > /dev/null || compgen -G "reports/.email-sent-*" > /dev/null; then
+            git add reports
           else
-            echo "No report files found."
+            echo "No report or email marker files found."
           fi
           if git diff --cached --quiet; then
             echo "No report changes to commit."

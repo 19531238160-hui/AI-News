@@ -8,16 +8,20 @@ def test_daily_workflow_uses_multiple_non_peak_schedule_attempts():
     assert 'cron: "47 11 * * *"' in workflow
     assert 'cron: "17 12 * * *"' in workflow
     assert 'cron: "45 12 * * *"' in workflow
+    assert 'cron: "15 13 * * *"' in workflow
     assert 'cron: "0 11 * * *"' not in workflow
 
 
-def test_daily_workflow_skips_duplicate_scheduled_reports():
+def test_daily_workflow_skips_only_after_email_sent_marker_exists():
     workflow = Path(".github/workflows/daily-ai-news.yml").read_text(encoding="utf-8")
 
-    assert "id: report_date" in workflow
+    assert "id: email_marker" in workflow
     assert 'TZ=Asia/Shanghai date +%F' in workflow
-    assert 'if: github.event_name != \'schedule\' || steps.report_date.outputs.exists != \'true\'' in workflow
+    assert 'reports/.email-sent-${report_date}' in workflow
+    assert 'if: github.event_name != \'schedule\' || steps.email_marker.outputs.exists != \'true\'' in workflow
     assert "Generate and email daily report" in workflow
+    assert "Mark email sent" in workflow
+    assert "reports/.email-sent-*" in workflow
 
 
 def test_daily_workflow_syncs_before_pushing_reports():
