@@ -3,6 +3,8 @@ name: Daily AI News
 on:
   schedule:
     - cron: "17 11 * * *"
+    - cron: "47 11 * * *"
+    - cron: "17 12 * * *"
   workflow_dispatch:
 
 permissions:
@@ -35,7 +37,22 @@ jobs:
       - name: Run tests
         run: pytest -v
 
+      - name: Check today's report
+        id: report_date
+        run: |
+          report_date="$(TZ=Asia/Shanghai date +%F)"
+          report_path="reports/${report_date}.md"
+          echo "date=${report_date}" >> "$GITHUB_OUTPUT"
+          if [ -f "$report_path" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Report already exists: $report_path"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Report not found: $report_path"
+          fi
+
       - name: Generate and email daily report
+        if: github.event_name != 'schedule' || steps.report_date.outputs.exists != 'true'
         env:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
