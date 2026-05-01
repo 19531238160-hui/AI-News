@@ -12,7 +12,8 @@ def test_daily_workflow_syncs_before_pushing_reports():
     workflow = Path(".github/workflows/daily-ai-news.yml").read_text(encoding="utf-8")
 
     assert "concurrency:" in workflow
-    assert "git fetch origin main" in workflow
+    assert "fetch-depth: 0" in workflow
+    assert "git fetch origin main:refs/remotes/origin/main" in workflow
     assert "git rebase origin/main" in workflow
     assert "git push origin HEAD:main" in workflow
     assert "git push\n" not in workflow
