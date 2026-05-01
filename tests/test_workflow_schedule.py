@@ -12,6 +12,16 @@ def test_daily_workflow_uses_multiple_non_peak_schedule_attempts():
     assert 'cron: "0 11 * * *"' not in workflow
 
 
+def test_daily_workflow_can_be_smoke_tested_by_workflow_push():
+    workflow = Path(".github/workflows/daily-ai-news.yml").read_text(encoding="utf-8")
+
+    assert "push:" in workflow
+    assert "branches:" in workflow
+    assert "- main" in workflow
+    assert "paths:" in workflow
+    assert "- .github/workflows/daily-ai-news.yml" in workflow
+
+
 def test_daily_workflow_skips_only_after_email_sent_marker_exists():
     workflow = Path(".github/workflows/daily-ai-news.yml").read_text(encoding="utf-8")
 
