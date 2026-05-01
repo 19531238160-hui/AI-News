@@ -12,6 +12,7 @@ on:
     - cron: "17 12 * * *"
     - cron: "45 12 * * *"
     - cron: "15 13 * * *"
+    - cron: "45 13 * * *"
   workflow_dispatch:
 
 permissions:
