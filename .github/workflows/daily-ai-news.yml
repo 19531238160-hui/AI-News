@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: daily-ai-news-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   daily-ai-news:
     runs-on: ubuntu-latest
@@ -58,5 +62,7 @@ jobs:
             echo "No report changes to commit."
           else
             git commit -m "chore: add AI news report for $(date -u +%F)"
-            git push
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
           fi
