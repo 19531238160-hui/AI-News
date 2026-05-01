@@ -7,6 +7,7 @@ def test_daily_workflow_uses_multiple_non_peak_schedule_attempts():
     assert 'cron: "17 11 * * *"' in workflow
     assert 'cron: "47 11 * * *"' in workflow
     assert 'cron: "17 12 * * *"' in workflow
+    assert 'cron: "45 12 * * *"' in workflow
     assert 'cron: "0 11 * * *"' not in workflow
 
 
