@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - .github/workflows/daily-ai-news.yml
+      - .github/automation-trigger.txt
   schedule:
     - cron: "17 11 * * *"
     - cron: "47 11 * * *"
@@ -61,7 +62,7 @@ jobs:
           fi
 
       - name: Generate and email daily report
-        if: github.event_name != 'schedule' || steps.email_marker.outputs.exists != 'true'
+        if: github.event_name == 'workflow_dispatch' || steps.email_marker.outputs.exists != 'true'
         env:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
@@ -78,7 +79,7 @@ jobs:
         run: python -m ai_news.main
 
       - name: Mark email sent
-        if: github.event_name != 'schedule' || steps.email_marker.outputs.exists != 'true'
+        if: github.event_name == 'workflow_dispatch' || steps.email_marker.outputs.exists != 'true'
         run: |
           touch "${{ steps.email_marker.outputs.path }}"
 

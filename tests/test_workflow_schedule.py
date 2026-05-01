@@ -21,6 +21,7 @@ def test_daily_workflow_can_be_smoke_tested_by_workflow_push():
     assert "- main" in workflow
     assert "paths:" in workflow
     assert "- .github/workflows/daily-ai-news.yml" in workflow
+    assert "- .github/automation-trigger.txt" in workflow
 
 
 def test_daily_workflow_skips_only_after_email_sent_marker_exists():
@@ -29,10 +30,20 @@ def test_daily_workflow_skips_only_after_email_sent_marker_exists():
     assert "id: email_marker" in workflow
     assert 'TZ=Asia/Shanghai date +%F' in workflow
     assert 'reports/.email-sent-${report_date}' in workflow
-    assert 'if: github.event_name != \'schedule\' || steps.email_marker.outputs.exists != \'true\'' in workflow
+    assert 'if: github.event_name == \'workflow_dispatch\' || steps.email_marker.outputs.exists != \'true\'' in workflow
     assert "Generate and email daily report" in workflow
     assert "Mark email sent" in workflow
     assert "reports/.email-sent-*" in workflow
+
+
+def test_local_trigger_script_commits_trigger_file_for_push_workflow():
+    script = Path("scripts/trigger-daily-ai-news.ps1").read_text(encoding="utf-8")
+
+    assert ".github/automation-trigger.txt" in script
+    assert "git pull --ff-only origin main" in script
+    assert "git add .github/automation-trigger.txt" in script
+    assert "git commit -m \"ci: trigger daily ai news\"" in script
+    assert "git push origin main" in script
 
 
 def test_daily_workflow_syncs_before_pushing_reports():
