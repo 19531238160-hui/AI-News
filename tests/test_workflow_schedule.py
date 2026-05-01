@@ -17,3 +17,12 @@ def test_daily_workflow_syncs_before_pushing_reports():
     assert "git rebase origin/main" in workflow
     assert "git push origin HEAD:main" in workflow
     assert "git push\n" not in workflow
+
+
+def test_daily_workflow_uses_node_24_compatible_actions():
+    workflow = Path(".github/workflows/daily-ai-news.yml").read_text(encoding="utf-8")
+
+    assert "uses: actions/checkout@v6" in workflow
+    assert "uses: actions/setup-python@v6" in workflow
+    assert "uses: actions/checkout@v4" not in workflow
+    assert "uses: actions/setup-python@v5" not in workflow
