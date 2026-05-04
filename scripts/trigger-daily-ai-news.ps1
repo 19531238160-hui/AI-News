@@ -10,10 +10,16 @@ git pull --ff-only origin main
 
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"
 $reportDate = Get-Date -Format "yyyy-MM-dd"
-@(
+$triggerContent = @(
     "REPORT_DATE=$reportDate"
     "TRIGGERED_AT=$timestamp"
-) | Set-Content -LiteralPath ".github/automation-trigger.txt" -Encoding UTF8
+) -join [Environment]::NewLine
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText(
+    (Join-Path (Get-Location) ".github/automation-trigger.txt"),
+    $triggerContent + [Environment]::NewLine,
+    $utf8NoBom
+)
 
 git add .github/automation-trigger.txt
 

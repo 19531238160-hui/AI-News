@@ -45,6 +45,8 @@ def test_local_trigger_script_commits_trigger_file_for_push_workflow():
     assert ".github/automation-trigger.txt" in script
     assert "git pull --ff-only origin main" in script
     assert 'REPORT_DATE=' in script
+    assert "UTF8Encoding($false)" in script
+    assert "Set-Content" not in script
     assert "git add .github/automation-trigger.txt" in script
     assert "git commit -m \"ci: trigger daily ai news\"" in script
     assert "git push origin main" in script
@@ -82,6 +84,7 @@ def test_daily_workflow_uses_trigger_report_date_to_avoid_midnight_queue_drift()
 
     assert "id: trigger_context" in workflow
     assert 'grep -E "^REPORT_DATE="' in workflow
+    assert "sed 's/^\\xEF\\xBB\\xBF//'" in workflow
     assert '[ "${{ github.event_name }}" = "schedule" ]' in workflow
     assert "date -u +%F" in workflow
     assert "steps.trigger_context.outputs.report_date" in workflow

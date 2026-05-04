@@ -50,7 +50,7 @@ jobs:
         id: trigger_context
         run: |
           if [ "${{ github.event_name }}" = "push" ] && [ -f ".github/automation-trigger.txt" ]; then
-            report_date="$(grep -E "^REPORT_DATE=" .github/automation-trigger.txt | tail -n 1 | cut -d= -f2-)"
+            report_date="$(sed 's/^\xEF\xBB\xBF//' .github/automation-trigger.txt | grep -E "^REPORT_DATE=" | tail -n 1 | cut -d= -f2-)"
           elif [ "${{ github.event_name }}" = "schedule" ]; then
             report_date="$(date -u +%F)"
           else
