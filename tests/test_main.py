@@ -131,6 +131,31 @@ def test_report_context_respects_explicit_today_for_beijing_anchor():
     assert report_end == datetime(2026, 4, 30, 15, 59, 59, tzinfo=timezone.utc)
 
 
+def test_main_passes_report_date_argument_to_run(monkeypatch):
+    captured = {}
+
+    def fake_load_config(dry_run_override=None):
+        assert dry_run_override is None
+        return config(dry_run=False)
+
+    def fake_run(_config, today=None):
+        captured["today"] = today
+
+    monkeypatch.setattr(main_module, "load_config", fake_load_config)
+    monkeypatch.setattr(main_module, "run", fake_run)
+    monkeypatch.setattr(
+        main_module.sys,
+        "argv",
+        ["ai-news", "--report-date", "2026-05-03"],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        main_module.main()
+
+    assert exc_info.value.code == 0
+    assert captured["today"] == date(2026, 5, 3)
+
+
 def test_run_no_news_error_includes_actionable_troubleshooting(tmp_path):
     def fake_fetch(_config):
         return ([], {"news_api_used": False})

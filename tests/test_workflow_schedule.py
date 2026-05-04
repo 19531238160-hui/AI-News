@@ -1,16 +1,18 @@
 from pathlib import Path
 
 
-def test_daily_workflow_uses_multiple_non_peak_schedule_attempts():
+def test_daily_workflow_keeps_github_cron_backup_and_local_push_trigger():
     workflow = Path(".github/workflows/daily-ai-news.yml").read_text(encoding="utf-8")
 
+    assert "push:" in workflow
+    assert "workflow_dispatch:" in workflow
+    assert "schedule:" in workflow
     assert 'cron: "17 11 * * *"' in workflow
     assert 'cron: "47 11 * * *"' in workflow
     assert 'cron: "17 12 * * *"' in workflow
     assert 'cron: "45 12 * * *"' in workflow
     assert 'cron: "15 13 * * *"' in workflow
     assert 'cron: "45 13 * * *"' in workflow
-    assert 'cron: "0 11 * * *"' not in workflow
 
 
 def test_daily_workflow_can_be_smoke_tested_by_workflow_push():
@@ -39,11 +41,20 @@ def test_daily_workflow_skips_only_after_email_sent_marker_exists():
 def test_local_trigger_script_commits_trigger_file_for_push_workflow():
     script = Path("scripts/trigger-daily-ai-news.ps1").read_text(encoding="utf-8")
 
+    assert '[string]$RepoPath = "E:\\AI-news"' in script
     assert ".github/automation-trigger.txt" in script
     assert "git pull --ff-only origin main" in script
+    assert 'REPORT_DATE=' in script
     assert "git add .github/automation-trigger.txt" in script
     assert "git commit -m \"ci: trigger daily ai news\"" in script
     assert "git push origin main" in script
+
+
+def test_committed_trigger_file_contains_report_date_for_workflow_push():
+    trigger = Path(".github/automation-trigger.txt").read_text(encoding="utf-8-sig")
+
+    assert "REPORT_DATE=" in trigger
+    assert "TRIGGERED_AT=" in trigger
 
 
 def test_daily_workflow_syncs_before_pushing_reports():
@@ -64,3 +75,15 @@ def test_daily_workflow_uses_node_24_compatible_actions():
     assert "uses: actions/setup-python@v6" in workflow
     assert "uses: actions/checkout@v4" not in workflow
     assert "uses: actions/setup-python@v5" not in workflow
+
+
+def test_daily_workflow_uses_trigger_report_date_to_avoid_midnight_queue_drift():
+    workflow = Path(".github/workflows/daily-ai-news.yml").read_text(encoding="utf-8")
+
+    assert "id: trigger_context" in workflow
+    assert 'grep -E "^REPORT_DATE="' in workflow
+    assert '[ "${{ github.event_name }}" = "schedule" ]' in workflow
+    assert "date -u +%F" in workflow
+    assert "steps.trigger_context.outputs.report_date" in workflow
+    assert "python -m ai_news.main --report-date" in workflow
+    assert "reports/.email-sent-${report_date}" in workflow

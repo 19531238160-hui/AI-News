@@ -104,12 +104,23 @@ def run(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate and email a daily AI news report.")
     parser.add_argument("--dry-run", action="store_true", help="Generate Markdown without sending email.")
+    parser.add_argument(
+        "--report-date",
+        help="Generate the report for a specific Beijing date, formatted as YYYY-MM-DD.",
+    )
     args = parser.parse_args()
 
     config = None
     try:
         config = load_config(dry_run_override=True if args.dry_run else None)
-        run(config)
+        today = date.fromisoformat(args.report_date) if args.report_date else None
+        if today is None:
+            run(config)
+        else:
+            run(config, today=today)
+    except ValueError as exc:
+        print("Error: --report-date must use YYYY-MM-DD format.", file=sys.stderr)
+        raise SystemExit(2) from exc
     except Exception as exc:
         print(f"Error: {_redact_secrets(str(exc), config)}", file=sys.stderr)
         print(CLI_TROUBLESHOOTING, file=sys.stderr)

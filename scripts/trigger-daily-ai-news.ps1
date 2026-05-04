@@ -1,5 +1,5 @@
 param(
-    [string]$RepoPath = "C:\Users\Administrator\Documents\Codex\AI-News"
+    [string]$RepoPath = "E:\AI-news"
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,7 +9,11 @@ Set-Location -LiteralPath $RepoPath
 git pull --ff-only origin main
 
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"
-Set-Content -LiteralPath ".github/automation-trigger.txt" -Value "Triggered at $timestamp" -Encoding UTF8
+$reportDate = Get-Date -Format "yyyy-MM-dd"
+@(
+    "REPORT_DATE=$reportDate"
+    "TRIGGERED_AT=$timestamp"
+) | Set-Content -LiteralPath ".github/automation-trigger.txt" -Encoding UTF8
 
 git add .github/automation-trigger.txt
 
