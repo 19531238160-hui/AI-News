@@ -43,13 +43,16 @@ def test_local_trigger_script_commits_trigger_file_for_push_workflow():
 
     assert '[string]$RepoPath = "E:\\AI-news"' in script
     assert ".github/automation-trigger.txt" in script
-    assert "git pull --ff-only origin main" in script
+    assert "Invoke-Git fetch origin main:refs/remotes/origin/main" in script
+    assert "Invoke-Git rebase origin/main" in script
+    assert "Invoke-Git" in script
+    assert "exit $LASTEXITCODE" in script
     assert 'REPORT_DATE=' in script
     assert "UTF8Encoding($false)" in script
     assert "Set-Content" not in script
-    assert "git add .github/automation-trigger.txt" in script
-    assert "git commit -m \"ci: trigger daily ai news\"" in script
-    assert "git push origin main" in script
+    assert "Invoke-Git add .github/automation-trigger.txt" in script
+    assert "Invoke-Git commit -m \"ci: trigger daily ai news\"" in script
+    assert "Invoke-Git push origin main" in script
 
 
 def test_committed_trigger_file_contains_report_date_for_workflow_push():
