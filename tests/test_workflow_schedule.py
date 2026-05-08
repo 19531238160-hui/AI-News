@@ -57,6 +57,8 @@ def test_local_trigger_script_commits_trigger_file_for_push_workflow():
     assert "Invoke-Git commit -m \"ci: trigger daily ai news\"" in script
     assert "Invoke-Git push origin main" in script
     assert "Invoke-WorkflowDispatch" in script
+    assert "git trigger failed; dispatched workflow through GitHub API" in script
+    assert "exit 0" in script
     assert "actions/workflows/daily-ai-news.yml/dispatches" in script
     assert "report_date = $ReportDate" in script
 
