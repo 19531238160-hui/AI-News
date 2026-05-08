@@ -24,6 +24,8 @@ def test_daily_workflow_can_be_smoke_tested_by_workflow_push():
     assert "paths:" in workflow
     assert "- .github/workflows/daily-ai-news.yml" in workflow
     assert "- .github/automation-trigger.txt" in workflow
+    assert "workflow_dispatch:" in workflow
+    assert "report_date:" in workflow
 
 
 def test_daily_workflow_skips_only_after_email_sent_marker_exists():
@@ -46,13 +48,17 @@ def test_local_trigger_script_commits_trigger_file_for_push_workflow():
     assert "Invoke-Git fetch origin main:refs/remotes/origin/main" in script
     assert "Invoke-Git rebase origin/main" in script
     assert "Invoke-Git" in script
-    assert "exit $LASTEXITCODE" in script
+    assert "throw \"git" in script
+    assert "exit $LASTEXITCODE" not in script
     assert 'REPORT_DATE=' in script
     assert "UTF8Encoding($false)" in script
     assert "Set-Content" not in script
     assert "Invoke-Git add .github/automation-trigger.txt" in script
     assert "Invoke-Git commit -m \"ci: trigger daily ai news\"" in script
     assert "Invoke-Git push origin main" in script
+    assert "Invoke-WorkflowDispatch" in script
+    assert "actions/workflows/daily-ai-news.yml/dispatches" in script
+    assert "report_date = $ReportDate" in script
 
 
 def test_committed_trigger_file_contains_report_date_for_workflow_push():
@@ -88,6 +94,8 @@ def test_daily_workflow_uses_trigger_report_date_to_avoid_midnight_queue_drift()
     assert "id: trigger_context" in workflow
     assert 'grep -E "^REPORT_DATE="' in workflow
     assert "sed 's/^\\xEF\\xBB\\xBF//'" in workflow
+    assert '[ "${{ github.event_name }}" = "workflow_dispatch" ]' in workflow
+    assert "${{ inputs.report_date }}" in workflow
     assert '[ "${{ github.event_name }}" = "schedule" ]' in workflow
     assert "date -u +%F" in workflow
     assert "steps.trigger_context.outputs.report_date" in workflow
