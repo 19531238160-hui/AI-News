@@ -7,17 +7,53 @@ $ErrorActionPreference = "Stop"
 function Invoke-Git {
     & git @args
     if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
+        throw "git $($args -join ' ') failed with exit code $LASTEXITCODE."
     }
+}
+
+function Invoke-WorkflowDispatch {
+    param([string]$ReportDate)
+
+    $credentialInput = "protocol=https`nhost=github.com`npath=Xhuiz/AI-News.git`n`n"
+    $credential = $credentialInput | git credential fill
+    $token = ($credential | Where-Object { $_ -like "password=*" }) -replace "^password=", ""
+    if (-not $token) {
+        throw "No GitHub token found in git credential helper."
+    }
+
+    $headers = @{
+        "User-Agent" = "AI-News-Local-Trigger"
+        "Accept" = "application/vnd.github+json"
+        "Authorization" = "Bearer $token"
+        "X-GitHub-Api-Version" = "2022-11-28"
+    }
+    $body = @{
+        ref = "main"
+        inputs = @{
+            report_date = $ReportDate
+        }
+    } | ConvertTo-Json -Depth 4
+
+    Invoke-RestMethod `
+        -Method Post `
+        -Uri "https://api.github.com/repos/Xhuiz/AI-News/actions/workflows/daily-ai-news.yml/dispatches" `
+        -Headers $headers `
+        -Body $body `
+        -ContentType "application/json" | Out-Null
 }
 
 Set-Location -LiteralPath $RepoPath
 
-Invoke-Git fetch origin main:refs/remotes/origin/main
-Invoke-Git rebase origin/main
-
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss zzz"
 $reportDate = Get-Date -Format "yyyy-MM-dd"
+
+try {
+    Invoke-Git fetch origin main:refs/remotes/origin/main
+    Invoke-Git rebase origin/main
+} catch {
+    Invoke-WorkflowDispatch -ReportDate $reportDate
+    throw
+}
 $triggerContent = @(
     "REPORT_DATE=$reportDate"
     "TRIGGERED_AT=$timestamp"
