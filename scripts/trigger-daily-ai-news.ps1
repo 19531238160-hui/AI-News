@@ -50,28 +50,30 @@ $reportDate = Get-Date -Format "yyyy-MM-dd"
 try {
     Invoke-Git fetch origin main:refs/remotes/origin/main
     Invoke-Git rebase origin/main
+
+    $triggerContent = @(
+        "REPORT_DATE=$reportDate"
+        "TRIGGERED_AT=$timestamp"
+    ) -join [Environment]::NewLine
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText(
+        (Join-Path (Get-Location) ".github/automation-trigger.txt"),
+        $triggerContent + [Environment]::NewLine,
+        $utf8NoBom
+    )
+
+    Invoke-Git add .github/automation-trigger.txt
+
+    & git diff --cached --quiet
+    $diffExitCode = $LASTEXITCODE
+    if ($diffExitCode -eq 1) {
+        Invoke-Git commit -m "ci: trigger daily ai news"
+        Invoke-Git push origin main
+    } elseif ($diffExitCode -ne 0) {
+        throw "git diff --cached --quiet failed with exit code $diffExitCode."
+    }
 } catch {
+    Write-Warning "git trigger failed; dispatched workflow through GitHub API. $($_.Exception.Message)"
     Invoke-WorkflowDispatch -ReportDate $reportDate
-    throw
-}
-$triggerContent = @(
-    "REPORT_DATE=$reportDate"
-    "TRIGGERED_AT=$timestamp"
-) -join [Environment]::NewLine
-$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-[System.IO.File]::WriteAllText(
-    (Join-Path (Get-Location) ".github/automation-trigger.txt"),
-    $triggerContent + [Environment]::NewLine,
-    $utf8NoBom
-)
-
-Invoke-Git add .github/automation-trigger.txt
-
-& git diff --cached --quiet
-$diffExitCode = $LASTEXITCODE
-if ($diffExitCode -eq 1) {
-    Invoke-Git commit -m "ci: trigger daily ai news"
-    Invoke-Git push origin main
-} elseif ($diffExitCode -ne 0) {
-    exit $diffExitCode
+    exit 0
 }
